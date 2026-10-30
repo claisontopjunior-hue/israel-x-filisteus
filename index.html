@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Israel x Filisteus</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#171b20;color:#eee;font-family:Georgia,serif}
+header{text-align:center;padding:18px;background:#242b30;border-bottom:2px solid #b38a45}
+h1{color:#d9b46b;margin:5px;font-size:25px}
+header p{color:#bbb;font-size:13px}
+main{max-width:650px;margin:auto;padding:14px}
+.panel{background:#252d32;padding:13px;border-radius:10px;margin-bottom:12px}
+.stats{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+#turn{color:#e6c37c;font-weight:bold;text-align:center}
+#map{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.tile{aspect-ratio:1;border:1px solid #555;border-radius:5px;background:#7c795c;color:white;font-size:22px;position:relative;padding:0}
+.tile small{position:absolute;bottom:2px;right:3px;font-size:10px}
+.israel{background:#386b53}
+.philistine{background:#914a42}
+.capital{border:2px solid #e6c37c}
+.selected{outline:3px solid #ffe58b;outline-offset:1px}
+button.action{padding:12px;background:#b18b4c;color:#171717;border:0;border-radius:7px;font-weight:bold}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.actions button{flex:1}
+#message{min-height:38px;font-size:14px;color:#ddd;margin-top:10px}
+.legend{font-size:12px;color:#ccc;line-height:2}
+#history{font-size:12px;color:#bbb;max-height:90px;overflow:auto}
+footer{text-align:center;color:#888;padding:18px;font-size:11px}
+</style>
+</head>
+<body>
+<header>
+<h1>ISRAEL × FILISTEUS</h1>
+<p>Uma disputa pela conquista da Terra de Israel</p>
+</header>
+<main>
+<div class="panel stats">
+<div>🟢 Israel<br>Ouro: <b id="gold0">30</b></div>
+<div id="turn">Turno de Israel</div>
+<div>🔴 Filístia<br>Ouro: <b id="gold1">30</b></div>
+</div>
+<div class="panel">
+<div id="map"></div>
+</div>
+<div class="panel">
+<b>Território selecionado</b>
+<div id="message">Selecione uma unidade do seu exército.</div>
+<div class="actions">
+<button class="action" onclick="recruit()">Recrutar (10 ouro)</button>
+<button class="action" onclick="endTurn()">Finalizar turno</button>
+</div>
+</div>
+<div class="panel legend">
+<b>Terrenos:</b><br>
+🟩 Israel &nbsp; 🟥 Filístia &nbsp; 🟫 Neutro<br>
+🏰 Capital &nbsp; ⚔️ Infantaria &nbsp; 🏹 Fundeiros<br>
+⛰️ Montanhas &nbsp; 🌲 Florestas &nbsp; 🌾 Planícies
+</div>
+<div class="panel">
+<b>Histórico da campanha</b>
+<div id="history">A campanha começou. Dois povos disputam o território.</div>
+</div>
+</main>
+<footer>IMPERIUM STUDIOS — PROTÓTIPO 0.1</footer>
+<script>
+const terrain=[
+"🌲","🌾","🌾","⛰️","🌾","🌲","🌾",
+"🌾","🌲","🌾","🌾","🌲","🌾","🌾",
+"🌾","⛰️","🌾","🌾","🌾","⛰️","🌾",
+"🌾","🌾","🌲","🌾","🌲","🌾","🌾",
+"🌲","🌾","🌾","⛰️","🌾","🌾","🌲",
+"🌾","🌲","🌾","🌾","🌾","🌲","🌾",
+"🌾","🌾","⛰️","🌾","🌲","🌾","🌾"
+];
+let tiles=terrain.map((t,i)=>({
+terrain:t,owner:(i===0||i===1||i===7)?0:
+(i===41||i===47||i===48)?1:-1,
+units:(i===0||i===41)?3:
+(i===1||i===7||i===47||i===48)?1:0,
+capital:i===0||i===41
+}));
+let player=0,gold=[30,30],selected=null,finished=false;
+const map=document.getElementById("map");
+function log(s){
+document.getElementById("history").innerHTML=
+s+"<br>"+document.getElementById("history").innerHTML;
+}
+function render(){
+map.innerHTML="";
+tiles.forEach((t,i)=>{
+let b=document.createElement("button");
+b.className="tile "+(t.owner===0?"israel":t.owner===1?"philistine":"")+
+(t.capital?" capital":"")+(selected===i?" selected":"");
+b.innerHTML=(t.capital?"🏰":t.units>0?(t.owner===0?"⚔️":"🛡️"):t.terrain)+
+"<small>"+(t.units||"")+"</small>";
+b.onclick=()=>clickTile(i);
+map.appendChild(b);
+});
+document.getElementById("gold0").textContent=gold[0];
+document.getElementById("gold1").textContent=gold[1];
+document.getElementById("turn").textContent=
+player===0?"Turno de Israel":"Turno da Filístia";
+}
+function adjacent(a,b){
+let x=a%7,y=Math.floor(a/7),u=b%7,v=Math.floor(b/7);
+return Math.abs(x-u)+Math.abs(y-v)===1;
+}
+function clickTile(i){
+if(finished)return;
+let t=tiles[i];
+if(selected===null){
+if(t.owner===player&&t.units>0){
+selected=i;
+document.getElementById("message").textContent=
+"Unidade selecionada. Escolha um território adjacente.";
+}else{
+document.getElementById("message").textContent="Selecione uma unidade sua.";
+}
+}else if(i===selected){
+selected=null;
+}else if(adjacent(selected,i)){
+let a=tiles[selected],def=t;
+if(def.owner===player){
+document.getElementById("message").textContent="Território aliado.";
+}else{
+let attack=a.units;
+let defense=def.units;
+if(def.owner===-1||attack>defense){
+def.owner=player;
+def.units=Math.max(1,attack-defense);
+a.units=0;
+log((player===0?"Israel":"Filístia")+" conquistou um território!");
+if(def.capital&&def.owner===player){
+finished=true;
+document.getElementById("message").textContent=
+(player===0?"ISRAEL":"FILÍSTIA")+" VENCEU A CAMPANHA!";
+}
+}else{
+a.units=0;
+def.units=Math.max(1,defense-attack);
+log("Um ataque foi repelido!");
+}
+}
+selected=null;
+}else{
+selected=null;
+document.getElementById("message").textContent="Movimento inválido.";
+}
+render();
+}
+function recruit(){
+if(finished)return;
+if(selected===null||tiles[selected].owner!==player){
+document.getElementById("message").textContent="Selecione um território seu.";
+return;
+}
+if(gold[player]<10){
+document.getElementById("message").textContent="Ouro insuficiente.";
+return;
+}
+gold[player]-=10;
+tiles[selected].units++;
+log("Novos soldados foram recrutados.");
+render();
+}
+function endTurn(){
+if(finished)return;
+selected=null;
+player=1-player;
+gold[player]+=10;
+document.getElementById("message").textContent=
+"Novo turno. Administre seu exército.";
+render();
+}
+render();
+</script>
+</body>
+</html>
